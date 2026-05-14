@@ -1,17 +1,76 @@
 services:
-  db:
+  postgres:
     image: postgres:17
+    container_name: postgres
+    restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: snowflake
+      POSTGRES_DB: spark
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init:/docker-entrypoint-initdb.d:ro
       - ./исходные данные:/csv:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d spark"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      - bda-net
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.8
+    container_name: clickhouse
+    restart: unless-stopped
+    environment:
+      CLICKHOUSE_DB: reports
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: ""
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+    healthcheck:
+      test: ["CMD-SHELL", "clickhouse-client --query 'SELECT 1'"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      - bda-net
+
+  spark:
+    image: jupyter/pyspark-notebook:spark-3.5.0
+    container_name: spark
+    restart: unless-stopped
+    user: root
+    environment:
+      JUPYTER_ENABLE_LAB: "yes"
+      GRANT_SUDO: "yes"
+    ports:
+      - "8888:8888"
+      - "4040:4040"
+    volumes:
+      - ./spark:/home/jovyan/work/spark
+      - ./notebooks:/home/jovyan/work/notebooks
+      - ./data:/home/jovyan/work/data:ro
+    command: start-notebook.py --NotebookApp.token='' --NotebookApp.password=''
+    depends_on:
+      postgres:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+    networks:
+      - bda-net
 
 volumes:
   postgres_data:
-  
+  clickhouse_data:
+
+networks:
+  bda-net:
+    driver: bridge

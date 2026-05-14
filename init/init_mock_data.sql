@@ -1,7 +1,5 @@
 DROP TABLE IF EXISTS mock_data;
 
-SET datestyle = 'ISO, MDY';
-
 CREATE TABLE mock_data (
     id INTEGER,
     customer_first_name TEXT,
